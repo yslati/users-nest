@@ -107,7 +107,7 @@ export class UserService {
 		return "all Cleared"
 	}
 
-	async allRelations(): Promise<UserI[]> {
+	async allRelations() {
 		const users = await this.usersRepository.find({select: ['id', 'username', 'friendRequest', 'friends']})
 		if (!users)
 			throw new HttpException("no relation found", HttpStatus.NOT_FOUND)
@@ -117,9 +117,19 @@ export class UserService {
 	async sendRequest(req: Request, bd: UserI) {
 		const user = await this.usersRepository.findOne({id: (await this.profile(req)).id});
 		const friend = await this.usersRepository.findOne({id: bd.id});
+		if (!friend)
+			throw new HttpException('user not found', HttpStatus.NOT_FOUND)
+		if (user.friendRequest && await user.friendRequest.indexOf(friend))
+			throw new HttpException('you already send friend request', HttpStatus.BAD_REQUEST)
+		if (friend.friendRequest && await friend.friendRequest.indexOf(user) > -1)
+			throw new HttpException('you already have friend request from this user', HttpStatus.BAD_REQUEST)
+		if (friend.friends && await friend.friends.indexOf(user) > -1)
+			throw new HttpException('you\'re already friend',HttpStatus.BAD_REQUEST)
+		
+		// await friend.friendRequest.push(user)
 		friend.friendRequest = [user]
 		await this.usersRepository.save(friend)
-		
+
 		return friend
 	}
 
@@ -127,14 +137,29 @@ export class UserService {
 		const user = await this.usersRepository.findOne({id: (await this.profile(req)).id});
 		if (!bd.id)
 			throw new HttpException('you must provid id', HttpStatus.BAD_REQUEST)
-		const friend = await this.usersRepository.findOne({id: bd.id})
-		if (!user.friendRequest.length)
-			throw new HttpException('you dont have any friend request', HttpStatus.BAD_REQUEST)
-		// if (!user.friends.find(friend))
-		// 	throw new HttpException('you\'re already friend', HttpStatus.BAD_REQUEST)
-		// if (!user.friendRequest.find(friend))
-		// 	throw new HttpException('you cant\'t accept someone doesn\'t sent you friend request', HttpStatus.BAD_REQUEST)
+
+		let friend
+		if (!(friend = await this.usersRepository.findOne({id: bd.id})))
+			throw new HttpException('user not found', HttpStatus.NOT_FOUND)
+		if (user.friends && await user.friends.indexOf(friend))
+			throw new HttpException('you\'re already friend', HttpStatus.BAD_REQUEST)
 		
+		let index
+		if (user.friendRequest) 
+			index = await user.friendRequest.indexOf(friend)
+		if (index == -1)
+			throw new HttpException('you cant\'t accept someone doesn\'t sent you friend request', HttpStatus.BAD_REQUEST)
+		
+		// user.friends.push(friend)
+		// user.friendRequest.slice(index)
+		// friend.friends.push(user)
+		// user.friends = [friend]
+		user.friendRequest = []
+		await this.usersRepository.save(user)
+		friend.friends = [user]
+		await this.usersRepository.save(friend)
+
+		return friend
 	}
 	
 }

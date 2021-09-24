@@ -51,7 +51,7 @@ export class UserController {
 	}
 
 	@Get('relations')
-	async allRelations(): Promise<UserI[]> {
+	async allRelations() {
 		return this.userService.allRelations()
 	}
 
